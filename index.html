@@ -2,47 +2,404 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pregunta seria...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Surf Ramp Classic</title>
     <style>
-        *, *::before, *::after { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #ffe6e6; text-align: center; overflow: hidden; }
-        .contenedor { background: white; padding: 40px 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); width: 90%; max-width: 400px; z-index: 10; }
-        h1 { color: #ff4d6d; font-size: 24px; margin-bottom: 30px; line-height: 1.4; }
-        .botones { display: flex; justify-content: center; gap: 20px; height: 50px; position: relative; }
-        button { padding: 12px 30px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.1s ease; touch-action: manipulation; }
-        #btn-si { background-color: #4cc9f0; color: white; }
-        #btn-si:hover, #btn-si:active { background-color: #4361ee; transform: scale(1.1); }
-        #btn-no { background-color: #f72585; color: white; position: absolute; right: 40px; transition: all 0.15s ease; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: #002d32; 
+            font-family: 'Arial Rounded MT Bold', Arial, sans-serif; 
+            overflow: hidden; 
+            position: fixed; 
+            width: 100%; 
+            height: 100%; 
+        }
+        canvas { 
+            display: block; 
+            background: linear-gradient(to bottom, #7dd3fc, #38bdf8, #0284c7); 
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.6);
+            pointer-events: none;
+            z-index: 10;
+        }
+        .score-val { color: #ffd600; }
     </style>
 </head>
 <body>
-    <div class="contenedor">
-        <h1 id="pregunta">¿Tendrías una cita conmigo? ❤️</h1>
-        <div class="botones">
-            <button id="btn-si" onclick="aceptarCita()">¡SÍ!</button>
-            <button id="btn-no" onmouseover="moverBoton(this)" ontouchstart="moverBoton(this)" onclick="moverBoton(this)">No</button>
-        </div>
+
+    <div id="ui">
+        <div>Puntos: <span id="score" class="score-val">0</span></div>
+        <div style="font-size: 15px; margin-top: 5px;">Estrellas: <span id="coins" style="color: #ffeb3b;">0</span></div>
     </div>
-    <script>
-        function moverBoton(boton) {
-            const padding = 20;
-            const anchoBoton = boton.offsetWidth || 80;
-            const altoBoton = boton.offsetHeight || 45;
-            const maxW = window.innerWidth - anchoBoton - padding;
-            const maxH = window.innerHeight - altoBoton - padding;
-            const randomX = Math.max(padding, Math.floor(Math.random() * maxW));
-            const randomY = Math.max(padding, Math.floor(Math.random() * maxH));
-            boton.style.position = "fixed";
-            boton.style.left = randomX + "px";
-            boton.style.top = randomY + "px";
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const scoreElement = document.getElementById("score");
+const coinsElement = document.getElementById("coins");
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resizeCanvas();
+
+let score = 0;
+let coins = 0;
+let gameOver = false;
+let gameFrame = 0;
+
+const surfer = {
+    x: 50, 
+    y: canvas.height / 2,
+    z: 0,            
+    vy: 0,           
+    vz: 0,           
+    gravity: 0.55,    
+    width: 90,   
+    height: 30,  
+    targetY: canvas.height / 2,
+    speed: 0.09, 
+    angle: 0     
+};
+
+const obstacles = [];
+const collectibles = [];
+const ramps = []; // Cambiado de nuevo a rampas normales
+let gameSpeed = 5.2; 
+
+window.addEventListener('touchmove', (e) => {
+    if (gameOver) return;
+    let touchY = e.touches[0].clientY;
+    if (surfer.z > 0) {
+        surfer.targetY = surfer.targetY + (touchY - surfer.height / 2 - surfer.targetY) * 0.3;
+    } else {
+        surfer.targetY = touchY - surfer.height / 2;
+    }
+}, { passive: true });
+
+window.addEventListener('touchstart', () => {
+    if (gameOver) restartGame();
+});
+
+function spawnObjects() {
+    gameFrame++;
+    
+    if (gameFrame % 95 === 0) {
+        obstacles.push({
+            x: canvas.width,
+            y: Math.random() * (canvas.height - 160) + 60,
+            width: 55,
+            height: 45,
+        });
+        if (gameSpeed < 12) gameSpeed += 0.07;
+    }
+
+    // Aparición de las rampas de madera
+    if (gameFrame % 220 === 0) {
+        ramps.push({
+            x: canvas.width,
+            y: Math.random() * (canvas.height - 150) + 60,
+            width: 75,
+            height: 40
+        });
+    }
+
+    if (gameFrame % 140 === 0) {
+        collectibles.push({
+            x: canvas.width,
+            y: Math.random() * (canvas.height - 120) + 60,
+            size: 18,
+            pulse: 0
+        });
+    }
+}
+
+function update() {
+    if (gameOver) return;
+
+    if (surfer.z > 0) {
+        surfer.vz -= surfer.gravity;
+        surfer.z += surfer.vz;
+
+        if (surfer.z <= 0) {
+            surfer.z = 0;
+            surfer.vz = 0;
         }
-        function aceptarCita() {
-            document.getElementById("pregunta").innerHTML = "¡Sabía que dirías que sí! 🥰 Nos vemos pronto.";
-            document.getElementById("btn-no").style.display = "none";
-            document.getElementById("btn-si").style.transform = "scale(1.2)";
-            document.getElementById("btn-si").onclick = null;
+    }
+
+    let diffY = surfer.targetY - surfer.y;
+    surfer.y += diffY * surfer.speed;
+
+    if (surfer.z === 0) {
+        let targetAngle = diffY * 0.015; 
+        const maxAngle = 0.25; 
+        if (targetAngle > maxAngle) targetAngle = maxAngle;
+        if (targetAngle < -maxAngle) targetAngle = -maxAngle;
+        surfer.angle += (targetAngle - surfer.angle) * 0.2;
+    } else {
+        surfer.angle = -surfer.vz * 0.03;
+    }
+
+    if (surfer.y < 70) surfer.y = 70;
+    if (surfer.y > canvas.height - 90) surfer.y = canvas.height - 90;
+
+    // Colisiones con las rampas normales
+    for (let i = ramps.length - 1; i >= 0; i--) {
+        ramps[i].x -= gameSpeed;
+
+        if (
+            surfer.z === 0 &&
+            surfer.x < ramps[i].x + ramps[i].width &&
+            surfer.x + surfer.width - 30 > ramps[i].x &&
+            surfer.y < ramps[i].y + ramps[i].height &&
+            surfer.y + surfer.height > ramps[i].y
+        ) {
+            surfer.vz = 12.5; 
+            surfer.z = 1;
+            score += 15; 
         }
-    </script>
+
+        if (ramps[i].x + ramps[i].width < 0) ramps.splice(i, 1);
+    }
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].x -= gameSpeed;
+
+        if (
+            surfer.x < obstacles[i].x + obstacles[i].width &&
+            surfer.x + surfer.width - 25 > obstacles[i].x && 
+            surfer.y < obstacles[i].y + obstacles[i].height &&
+            surfer.y + surfer.height > obstacles[i].y
+        ) {
+            if (surfer.z < 25) {
+                gameOver = true;
+            } else {
+                score += 2; 
+            }
+        }
+
+        if (obstacles[i].x + obstacles[i].width < 0) {
+            obstacles.splice(i, 1);
+            score += 10;
+            scoreElement.innerText = score;
+        }
+    }
+
+    for (let i = collectibles.length - 1; i >= 0; i--) {
+        collectibles[i].x -= gameSpeed - 0.5;
+        collectibles[i].pulse += 0.08;
+
+        if (
+            surfer.z < 40 && 
+            surfer.x < collectibles[i].x + collectibles[i].size &&
+            surfer.x + surfer.width > collectibles[i].x &&
+            surfer.y < collectibles[i].y + collectibles[i].size &&
+            surfer.y + surfer.height > collectibles[i].y
+        ) {
+            collectibles.splice(i, 1);
+            coins++;
+            score += 50;
+            coinsElement.innerText = coins;
+            scoreElement.innerText = score;
+            continue;
+        }
+
+        if (collectibles[i].x + collectibles[i].size < 0) collectibles.splice(i, 1);
+    }
+
+    spawnObjects();
+}
+
+function drawWave(amplitude, frequency, speedOffset, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height);
+    for (let x = 0; x <= canvas.width; x += 10) {
+        let y = canvas.height - 180 + Math.sin(x * frequency + (gameFrame * speedOffset)) * amplitude;
+        ctx.lineTo(x, y);
+    }
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawWave(25, 0.003, -0.01, "rgba(2, 132, 199, 0.4)");
+    drawWave(18, 0.005, -0.02, "rgba(3, 105, 161, 0.5)");
+
+    // DIBUJAR RAMPA NORMAL DE MADERA (CUÑA)
+    for (let r of ramps) {
+        ctx.fillStyle = "#cca473"; // Color madera clara
+        ctx.beginPath();
+        ctx.moveTo(r.x, r.y + r.height);
+        ctx.lineTo(r.x + r.width, r.y + r.height - 20); // Ángulo de subida
+        ctx.lineTo(r.x + r.width, r.y + r.height);
+        ctx.closePath();
+        ctx.fill();
+
+        // Líneas de listones de madera para darle textura rápida
+        ctx.strokeStyle = "#9e784f";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(r.x + r.width * 0.4, r.y + r.height - 8);
+        ctx.lineTo(r.x + r.width * 0.4, r.y + r.height);
+        ctx.moveTo(r.x + r.width * 0.7, r.y + r.height - 14);
+        ctx.lineTo(r.x + r.width * 0.7, r.y + r.height);
+        ctx.stroke();
+
+        // Línea superior brillante (borde de la rampa)
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(r.x, r.y + r.height);
+        ctx.lineTo(r.x + r.width, r.y + r.height - 20);
+        ctx.stroke();
+    }
+
+    // Dibujar Surfista
+    ctx.save();
+    let drawY = surfer.y - surfer.z;
+    ctx.translate(surfer.x + surfer.width / 2, drawY + surfer.height / 2);
+    ctx.rotate(surfer.angle);
+
+    ctx.fillStyle = `rgba(0,0,0,${0.4 - (surfer.z * 0.005)})`;
+    ctx.beginPath();
+    let shadowScale = Math.max(5, 30 - surfer.z * 0.2);
+    ctx.ellipse(-surfer.width/2 - 10, 2 + surfer.z, shadowScale, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (surfer.z === 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.beginPath();
+        ctx.ellipse(-surfer.width/2 - 10, 2, 30, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    let airScale = 1 + (surfer.z * 0.002);
+    ctx.scale(airScale, airScale);
+
+    ctx.fillStyle = "#ffffff"; 
+    ctx.beginPath();
+    ctx.moveTo(surfer.width / 2, 0); 
+    ctx.bezierCurveTo(surfer.width / 3, -surfer.height / 2, -surfer.width / 3, -surfer.height / 2, -surfer.width / 2, -surfer.height / 5); 
+    ctx.lineTo(-surfer.width / 2, surfer.height / 5); 
+    ctx.bezierCurveTo(-surfer.width / 3, surfer.height / 2, surfer.width / 3, surfer.height / 2, surfer.width / 2, 0); 
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "#a1887f";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-surfer.width / 2, 0);
+    ctx.lineTo(surfer.width / 2, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = "#262626"; 
+    ctx.fillRect(-18, -20, 32, 10); 
+    ctx.fillRect(-5, -34, 14, 16);  
+    ctx.fillStyle = "#ffb74d"; 
+    ctx.beginPath();
+    ctx.arc(4, -39, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e6c300"; 
+    ctx.fillRect(-2, -46, 9, 8);
+    ctx.fillStyle = "#262626";
+    ctx.fillRect(4, -30, 16, 5); 
+
+    ctx.restore();
+
+    drawWave(12, 0.008, -0.03, "rgba(14, 116, 144, 0.3)");
+
+    // Estrellas
+    for (let col of collectibles) {
+        ctx.save();
+        ctx.translate(col.x, col.y);
+        ctx.rotate(col.pulse);
+        ctx.fillStyle = "#fdd835";
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+            ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * col.size, -Math.sin((18 + i * 72) * Math.PI / 180) * col.size);
+            ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * (col.size/2), -Math.sin((54 + i * 72) * Math.PI / 180) * (col.size/2));
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // Tiburones normales
+    for (let obs of obstacles) {
+        ctx.fillStyle = "#546e7a"; 
+        ctx.beginPath();
+        ctx.moveTo(obs.x + obs.width, obs.y + obs.height);
+        ctx.bezierCurveTo(obs.x + obs.width * 0.5, obs.y + obs.height * 0.4, obs.x + obs.width * 0.3, obs.y, obs.x, obs.y);
+        ctx.bezierCurveTo(obs.x + obs.width * 0.15, obs.y + obs.height * 0.7, obs.x, obs.y + obs.height, obs.x, obs.y + obs.height);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillRect(obs.x + obs.width - 10, obs.y + obs.height - 2, 15, 3);
+    }
+
+    if (gameOver) {
+        ctx.fillStyle = "rgba(0, 45, 50, 0.9)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = "white";
+        ctx.font = "bold 28px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("¡WIPEOUT!", canvas.width / 2, canvas.height / 2 - 40);
+        
+        ctx.fillStyle = "#ffd600";
+        ctx.font = "22px Arial";
+        ctx.fillText(`Puntos Totales: ${score}`, canvas.width / 2, canvas.height / 2 + 15);
+        
+        ctx.fillStyle = "white";
+        ctx.font = "16px Arial";
+        ctx.fillText("Toca la pantalla para volver a surfear", canvas.width / 2, canvas.height / 2 + 80);
+    }
+}
+
+function restartGame() {
+    obstacles.length = 0;
+    collectibles.length = 0;
+    ramps.length = 0;
+    score = 0;
+    coins = 0;
+    gameSpeed = 5.2;
+    gameFrame = 0;
+    scoreElement.innerText = score;
+    coinsElement.innerText = coins;
+    surfer.y = canvas.height / 2;
+    surfer.targetY = canvas.height / 2;
+    surfer.z = 0;
+    surfer.vz = 0;
+    surfer.angle = 0;
+    gameOver = false;
+    loop();
+}
+
+function loop() {
+    update();
+    draw();
+    if (!gameOver) {
+        requestAnimationFrame(loop);
+    }
+}
+
+loop();
+</script>
 </body>
 </html>
