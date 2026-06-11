@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pregunta seria...</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #ffe6e6; text-align: center; overflow: hidden; }
+        .contenedor { background: white; padding: 40px 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); width: 90%; max-width: 400px; z-index: 10; }
+        h1 { color: #ff4d6d; font-size: 24px; margin-bottom: 30px; line-height: 1.4; }
+        .botones { display: flex; justify-content: center; gap: 20px; height: 50px; position: relative; }
+        button { padding: 12px 30px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.1s ease; touch-action: manipulation; }
+        #btn-si { background-color: #4cc9f0; color: white; }
+        #btn-si:hover, #btn-si:active { background-color: #4361ee; transform: scale(1.1); }
+        #btn-no { background-color: #f72585; color: white; position: absolute; right: 40px; transition: all 0.15s ease; }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <h1 id="pregunta">¿Tendrías una cita conmigo? ❤️</h1>
+        <div class="botones">
+            <button id="btn-si" onclick="aceptarCita()">¡SÍ!</button>
+            <button id="btn-no" onmouseover="moverBoton(this)" ontouchstart="moverBoton(this)" onclick="moverBoton(this)">No</button>
+        </div>
+    </div>
+    <script>
+        function moverBoton(boton) {
+            const padding = 20;
+            const anchoBoton = boton.offsetWidth || 80;
+            const altoBoton = boton.offsetHeight || 45;
+            const maxW = window.innerWidth - anchoBoton - padding;
+            const maxH = window.innerHeight - altoBoton - padding;
+            const randomX = Math.max(padding, Math.floor(Math.random() * maxW));
+            const randomY = Math.max(padding, Math.floor(Math.random() * maxH));
+            boton.style.position = "fixed";
+            boton.style.left = randomX + "px";
+            boton.style.top = randomY + "px";
+        }
+        function aceptarCita() {
+            document.getElementById("pregunta").innerHTML = "¡Sabía que dirías que sí! 🥰 Nos vemos pronto.";
+            document.getElementById("btn-no").style.display = "none";
+            document.getElementById("btn-si").style.transform = "scale(1.2)";
+            document.getElementById("btn-si").onclick = null;
+        }
+    </script>
+</body>
+</html>
